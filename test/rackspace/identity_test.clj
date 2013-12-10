@@ -6,89 +6,147 @@
             [rackspace.util :as util]
             [rackspace.testing.payloads.identity :as payload]))
 
-(deftest test-login
+; (deftest test-password-auth-payload
+;   )
+
+; (deftest test-apikey-auth-payload
+;   )
+
+; These are integration tests
+; (deftest test-password-login
+;   )
+
+; (deftest test-apikey-login
+;   )
+
+; (deftest test-explicit-login
+;   )
+
+; (deftest test-login
+;   )
+
+; (deftest test-login-username-password
+;   (with-redefs [http/post (fn [url data] payload/login)]
+;     (let [response (identity/login "test-constant-alice" :password "test-constant-secret")]
+;       (is (= [:body :headers :orig-content-encoding
+;               :request-time :status :trace-redirects]
+;              (sort (keys response)))))))
+  
+; (deftest test-login-username-apikey
+;   (with-redefs [http/post (fn [url data] payload/login)]
+;     (let [response (identity/login "test-constant-alice" :apikey "test-constant-0123456789abcdef")]
+;       (is (= [:body :headers :orig-content-encoding
+;               :request-time :status :trace-redirects]
+;              (sort (keys response)))))))
+  
+(deftest test-login-failure
   (with-redefs [http/post (fn [url data] payload/login)]
-    ; auth with password
-    (let [response (identity/login "alice" :password "secret")]
-      (is (= [:body :headers :orig-content-encoding
-              :request-time :status :trace-redirects]
-             (sort (keys response)))))
-    ; auth with API key
-    (let [response (identity/login "alice" :apikey "0123456789abcdef")]
-      (is (= [:body :headers :orig-content-encoding
-              :request-time :status :trace-redirects]
-             (sort (keys response)))))
     ; attempt auth with incorrect API key parameter
     (is
       (thrown-with-msg?
         clojure.lang.ExceptionInfo
         #"AuthError: Missing named parameter"
-        (identity/login "alice" :api-key "0123456789abcdef")))
+        (identity/login "test-constant-alice" :api-key "test-constant-0123456789abcdef")))
     ; attempt auth with missing named parameter
     (is
       (thrown-with-msg?
         clojure.lang.ExceptionInfo
         #"AuthError: Missing named parameter"
-        (identity/login "alice"))))
+        (identity/login "test-constant-alice")))
     ; auth using ENV variables
     ; XXX we'll add a test when we think about how to mock out System/getenv
     ; auth using disc variables
     ; XXX we'll add a test when Sean merges his temp file code
-    )
+    ))
+
+(deftest test-get-disk-username
+  (with-redefs [const/username-file "asdfadfa"]
+    (is (= (identity/get-disk-username) "expected..."))
+  
+  (with-redefs [slurp (fn [filename] "asdasd")]
+    (is (= (identity/get-disk-username) "asdasd"))
+    
+  (with-redefs [http/post (fn [url data] payload/login)]
+    (let [file (util/create-temp-file)
+          file-contents "test-constant-alice"]
+      (spit file file-contents)
+      (with-redefs [const/username-file file]
+        (let [username (identity/get-disk-username)]
+          (is (= username file-contents)))))))
+
+(deftest test-get-disk-password
+  (with-redefs [http/post (fn [url data] payload/login)]
+    (let [file (util/create-temp-file)
+          file-contents "test-constant-!!secret1!1"]
+      (spit file file-contents)
+      (with-redefs [const/password-file file]
+        (let [password (identity/get-disk-password)]
+          (is (= password file-contents)))))))
+
+(deftest test-get-disk-apikey
+  (with-redefs [http/post (fn [url data] payload/login)]
+    (let [file (util/create-temp-file) 
+          file-contents "test-constant-0a12b33c444d5555ee0123456789ffff"]
+      (spit file file-contents)
+      (with-redefs [const/apikey-file file]
+        (let [apikey (identity/get-disk-apikey)]
+          (is (= apikey file-contents)))))))
+
+(deftest test-get-env-username
+  (with-redefs [http/post (fn [url data] payload/login)]
+    (let [response identity/login]
+      (is (= identity/get-env-username "test-constant-alice")))))
+
+(deftest test-get-env-password
+  (with-redefs [http/post (fn [url data] payload/login)]
+    (let [response identity/login]
+      (is (= identity/get-env-password "test-constant-12345")))))
+
+(deftest test-get-env-apikey
+  (with-redefs [http/post (fn [url data] payload/login)]
+    (let [response identity/login]
+      (is (= identity/get-env-apikey "test-constant-abcdef")))))
+
+(deftest test-get-tenant-id
+  (with-redefs [http/post (fn [url data] payload/login)]
+    (let [response identity/login]
+      (let [tenant-id (identity/get-tenant-id response)]
+        (is (= tenant-id "test-constant-12345abcdef"))))))
+
+(deftest test-get-user-id
+  (with-redefs [http/post (fn [url data] payload/login)]
+    (let [response identity/login]
+      (let [user-id (identity/get-user-id response)]
+        (is (= user-id "test-constant-12345abcdef"))))))
+
+(deftest test-get-user-name
+  (with-redefs [http/post (fn [url data] payload/login)]
+    (let [response identity/login]
+      (let [user-name (identity/get-user-name response)]
+        (is (= user-name "test-constant-12345abcdef"))))))
+  
+(deftest test-get-password
+  (with-redefs [identity/get-env-password (fn [] "test-constant-env-password")]
+    (let [password (identity/get-password)]
+      (is (= password "test-constant-env-password"))))
+  
+  (with-redefs [identity/get-env-password (fn [] nil)
+                identity/get-disk-password (fn [] "test-constant-disk-password")]
+    (let [password (identity/get-password)]
+      (is (= password "test-constant-disk-password")))))
+
+(deftest test-get-apikey
+  (with-redefs [identity/get-env-apikey (fn [] "test-constant-env-apikey")]
+    (let [apikey (identity/get-apikey)]
+      (is (= apikey "test-constant-env-apikey"))))
+  (with-redefs [identity/get-env-apikey (fn [] nil)
+                identity/get-disk-apikey (fn [] "test-constant-disk-apikey")]
+    (let [apikey (identity/get-apikey)]
+      (is (= apikey "test-constant-disk-apikey")))))
 
 (deftest test-get-token
   (with-redefs [http/post (fn [url data] payload/login)]
-    (let [response (identity/login "alice" :apikey "0123456789abcdef")
+    (let [response (identity/login "test-constant-alice" :apikey "test-constant-0123456789abcdef")
           data (identity/get-token response)]
-      (is (= "482664e7cf97408e82f512fad93abc98")))))
+      (is (= "test-constant-482664e7cf97408e82f512fad93abc98")))))
 
-(deftest test-get-disk-username
-  (let [file (util/create-temp-file)
-        file-contents "alice"]
-    (spit file file-contents)
-    (with-redefs [const/username-file file]
-      (let [username (identity/get-disk-username)]
-        (is (= username file-contents))))))
-
-(deftest test-get-disk-password
-  (let [file (util/create-temp-file)
-        file-contents "z0mg11!!secret1!1"]
-    (spit file file-contents)
-    (with-redefs [const/password-file file]
-      (let [password (identity/get-disk-password)]
-        (is (= password file-contents))))))
-
-(deftest test-get-disk-apikey
-  (let [file (util/create-temp-file)
-        file-contents "0a12b33c444d5555ee0123456789ffff"]
-    (spit file file-contents)
-    (with-redefs [const/apikey-file file]
-      (let [apikey (identity/get-disk-apikey)]
-        (is (= apikey file-contents))))))
-
-(deftest test-get-username
-  (with-redefs [identity/get-env-username (fn [] "env-username")]
-    (let [username (identity/get-username)]
-      (is (= username "env-username"))))
-  (with-redefs [identity/get-env-username (fn [] nil)
-                identity/get-disk-username (fn [] "disk-username")]
-    (let [username (identity/get-username)]
-      (is (= username "disk-username")))))
-
-(deftest test-get-password
-  (with-redefs [identity/get-env-password (fn [] "env-password")]
-    (let [password (identity/get-password)]
-      (is (= password "env-password"))))
-  (with-redefs [identity/get-env-password (fn [] nil)
-                identity/get-disk-password (fn [] "disk-password")]
-    (let [password (identity/get-password)]
-      (is (= password "disk-password")))))
-
-(deftest test-get-apikey
-  (with-redefs [identity/get-env-apikey (fn [] "env-apikey")]
-    (let [apikey (identity/get-apikey)]
-      (is (= apikey "env-apikey"))))
-  (with-redefs [identity/get-env-apikey (fn [] nil)
-                identity/get-disk-apikey (fn [] "disk-apikey")]
-    (let [apikey (identity/get-apikey)]
-      (is (= apikey "disk-apikey")))))
