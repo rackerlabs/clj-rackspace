@@ -32,7 +32,8 @@
     (apikey-auth-payload username apikey)))
 
 (defn explicit-login [username & {:keys [password apikey]}]
-  (cond
+  (
+   cond
     password (password-login username password)
     apikey (apikey-login username apikey)
     :else (throw
@@ -84,11 +85,6 @@
       (not (empty? apikey)) apikey
       :else (get-disk-apikey))))
 
-(defn get-password-or-apikey
-  "If a valid password exists return it, else return the API key."
-  []
-  (or (get-env-apikey) (get-env-password)))
-
 (defn login
   ([]
    (let [apikey (get-apikey)]
@@ -110,3 +106,4 @@
 
 (defn get-user-name [response]
   (get-in (util/parse-json-body response) [:access :user :name]))
+  
