@@ -65,6 +65,7 @@
   (System/getenv const/apikey-env))
 
 (defn get-username []
+  ;not to be confused with "get-user-name"
   (let [username (get-env-username)]
   (cond
     (not (empty? username)) username
@@ -105,5 +106,6 @@
   (get-in (util/parse-json-body response) [:access :user :id]))
 
 (defn get-user-name [response]
+  ;not to be confused with "get-username"
   (get-in (util/parse-json-body response) [:access :user :name]))
   
